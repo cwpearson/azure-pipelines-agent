@@ -15,8 +15,7 @@ stages:
           CMAKE_BUILD_TYPE: 'Debug'
         Release:
           CMAKE_BUILD_TYPE: 'Release'
-    pool:
-      vmImage: 'azure-pipelines-agent'
+    pool: 'azure-pipelines-agent'
     steps:
     - script: |
         sudo apt-get update
