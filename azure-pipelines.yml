@@ -1,0 +1,63 @@
+# Starter pipeline
+# Start with a minimal pipeline that you can customize to build and deploy your code.
+# Add steps that build, run tests, deploy, and more:
+# https://aka.ms/yaml
+
+
+
+stages:
+- stage: "NUMA_Build"
+  jobs:
+  - job: TheJob
+    strategy:
+      matrix:
+        Debug:
+          CMAKE_BUILD_TYPE: 'Debug'
+        Release:
+          CMAKE_BUILD_TYPE: 'Release'
+    pool:
+      vmImage: 'azure-pipelines-agent'
+    steps:
+    - script: |
+        sudo apt-get update
+        sudo apt-get install -y --no-install-suggests --no-install-recommends -y \
+        curl \
+        libnuma-dev 
+      displayName: 'Install packages'
+
+    - script: |
+        curl -SLO https://github.com/Kitware/CMake/releases/download/v3.14.3/cmake-3.14.3-Linux-x86_64.sh
+        chmod +x cmake-3.14.3-Linux-x86_64.sh
+        sudo ./cmake-3.14.3-Linux-x86_64.sh --skip-license --prefix=/usr/local
+      displayName: 'Install CMake'
+
+    - script: |
+        curl -SLO https://developer.download.nvidia.com/compute/cuda/repos/ubuntu1604/x86_64/cuda-repo-ubuntu1604_10.1.105-1_amd64.deb
+        sudo dpkg -i cuda-repo-ubuntu1604_10.1.105-1_amd64.deb
+        sudo apt-key adv --fetch-keys http://developer.download.nvidia.com/compute/cuda/repos/ubuntu1604/x86_64/7fa2af80.pub
+        sudo apt-get update
+        sudo apt-get install -y \
+        cuda-command-line-tools-10-1 \
+        cuda-cusparse-dev-10-1 \
+        cuda-nvml-dev-10-1 \
+        cuda-nvgraph-dev-10-1
+        echo '##vso[task.prependpath]/usr/local/cuda-10.1/bin/'
+      displayName: 'Install CUDA'
+
+    - script: |
+        which cmake
+        cmake --version
+        mkdir build
+        cd build
+        cmake ..
+      displayName: 'configure'
+
+    - script: |
+        cd build
+        make
+      displayName: 'build'
+
+    - script: |
+        cd build
+        ./main
+      displayName: 'test'
