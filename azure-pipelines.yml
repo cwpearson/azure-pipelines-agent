@@ -31,16 +31,16 @@ stages:
       displayName: 'Install CMake'
 
     - script: |
-        curl -SLO https://developer.download.nvidia.com/compute/cuda/repos/ubuntu1604/x86_64/cuda-repo-ubuntu1604_10.1.105-1_amd64.deb
-        sudo dpkg -i cuda-repo-ubuntu1604_10.1.105-1_amd64.deb
+        curl -SLO https://developer.download.nvidia.com/compute/cuda/repos/ubuntu1804/x86_64/cuda-repo-ubuntu1804_10.0.130-1_amd64.deb
+        sudo dpkg -i cuda-repo-ubuntu1804_10.0.130-1_amd64.deb
         sudo apt-key adv --fetch-keys http://developer.download.nvidia.com/compute/cuda/repos/ubuntu1604/x86_64/7fa2af80.pub
         sudo apt-get update
         sudo apt-get install -y \
-        cuda-command-line-tools-10-1 \
-        cuda-cusparse-dev-10-1 \
-        cuda-nvml-dev-10-1 \
-        cuda-nvgraph-dev-10-1
-        echo '##vso[task.prependpath]/usr/local/cuda-10.1/bin/'
+        cuda-command-line-tools-10-0 \
+        cuda-cusparse-dev-10-0 \
+        cuda-nvml-dev-10-0 \
+        cuda-nvgraph-dev-10-0
+        echo '##vso[task.prependpath]/usr/local/cuda-10.0/bin/'
       displayName: 'Install CUDA'
 
     - script: |
