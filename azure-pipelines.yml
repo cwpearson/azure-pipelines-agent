@@ -15,7 +15,7 @@ stages:
           CMAKE_BUILD_TYPE: 'Debug'
         Release:
           CMAKE_BUILD_TYPE: 'Release'
-    pool: 'azure-pipelines-agent'
+    pool: 'amd64-cuda-10-0'
     steps:
     - script: |
         sudo apt-get update
