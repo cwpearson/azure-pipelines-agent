@@ -3,60 +3,34 @@
 # Add steps that build, run tests, deploy, and more:
 # https://aka.ms/yaml
 
-
+variables:
+  DOCKER_USERNAME: cwpearson
+  IMAGE_NAME: azp-cuda-agent
 
 stages:
 - stage: "NUMA_Build"
   jobs:
-  - job: TheJob
+  - job: "docker"
     strategy:
       matrix:
-        Debug:
-          CMAKE_BUILD_TYPE: 'Debug'
-        Release:
-          CMAKE_BUILD_TYPE: 'Release'
-    pool: 'amd64-cuda-10-0'
+        amd64-ubuntu1604-cuda100:
+          IMAGE_TAG: amd64-ubuntu1604-cuda100
+        amd64-ubuntu1604-cuda101:
+          IMAGE_TAG: amd64-ubuntu1604-cuda101
+    pool:
+      vmImage: 'ubuntu-16.04'
     steps:
     - script: |
-        sudo apt-get update
-        sudo apt-get install -y --no-install-suggests --no-install-recommends -y \
-        curl \
-        libnuma-dev 
-      displayName: 'Install packages'
+        cd dockeragent
+        docker build -f Dockerfile.$(IMAGE_TAG) -t $(DOCKER_USERNAME)/$(IMAGE_NAME):$(IMAGE_TAG) . 
+      displayName: 'docker build'
 
     - script: |
-        curl -SLO https://github.com/Kitware/CMake/releases/download/v3.14.3/cmake-3.14.3-Linux-x86_64.sh
-        chmod +x cmake-3.14.3-Linux-x86_64.sh
-        sudo ./cmake-3.14.3-Linux-x86_64.sh --skip-license --prefix=/usr/local
-      displayName: 'Install CMake'
+        docker login -u $(DOCKER_USERNAME) -p $(DOCKER_PASSWORD)
+      displayName: 'docker login'
 
     - script: |
-        curl -SLO https://developer.download.nvidia.com/compute/cuda/repos/ubuntu1804/x86_64/cuda-repo-ubuntu1804_10.0.130-1_amd64.deb
-        sudo dpkg -i cuda-repo-ubuntu1804_10.0.130-1_amd64.deb
-        sudo apt-key adv --fetch-keys http://developer.download.nvidia.com/compute/cuda/repos/ubuntu1604/x86_64/7fa2af80.pub
-        sudo apt-get update
-        sudo apt-get install -y \
-        cuda-command-line-tools-10-0 \
-        cuda-cusparse-dev-10-0 \
-        cuda-nvml-dev-10-0 \
-        cuda-nvgraph-dev-10-0
-        echo '##vso[task.prependpath]/usr/local/cuda-10.0/bin/'
-      displayName: 'Install CUDA'
+        docker push $(DOCKER_USERNAME)/$(IMAGE_NAME)
+      displayName: 'docker login'
 
-    - script: |
-        which cmake
-        cmake --version
-        mkdir build
-        cd build
-        cmake ..
-      displayName: 'configure'
-
-    - script: |
-        cd build
-        make
-      displayName: 'build'
-
-    - script: |
-        cd build
-        ./main
-      displayName: 'test'
+    
