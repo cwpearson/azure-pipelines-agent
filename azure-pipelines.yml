@@ -13,6 +13,8 @@ stages:
   - job: "docker"
     strategy:
       matrix:
+        amd64-ubuntu1604-cuda92:
+          IMAGE_TAG: amd64-ubuntu1604-cuda92
         amd64-ubuntu1604-cuda100:
           IMAGE_TAG: amd64-ubuntu1604-cuda100
         amd64-ubuntu1604-cuda101:
@@ -31,6 +33,6 @@ stages:
 
     - script: |
         docker push $(DOCKER_USERNAME)/$(IMAGE_NAME)
-      displayName: 'docker login'
+      displayName: 'docker push'
 
     
