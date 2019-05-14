@@ -17,7 +17,7 @@ AZP_URL = "https://dev.azure.com/c3srdev"
 AZP_POOL = "amd64-ubuntu1604-cuda100"
 AZP_AGENT_NAME_BASE = socket.gethostname()
 
-CHECK_WAIT_SECONDS = 5
+CHECK_WAIT_SECONDS = 60
 DOCKER_CLIENT_TIMEOUT = 10
 
 def cleanup():
