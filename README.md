@@ -3,7 +3,7 @@ Some notes on Azure Pipeline self-hosted agent setup.
 
 https://docs.microsoft.com/en-us/azure/devops/pipelines/agents/v2-linux?view=azure-devops
 
-The followin steps are marked with (HOST) or (WEBSITE), suggesting whether the step should be carried out on the machine intened to be the self-hosted agent, or on the Azure Pipelines website.
+The following steps are marked with (HOST) or (WEBSITE), suggesting whether the step should be carried out on the machine intened to be the self-hosted agent, or on the Azure Pipelines website.
 
 ## (WEBSITE) set up PAT
 
@@ -39,20 +39,41 @@ The docker agent is configured to accept a single job and then exit.
 This ensures that each job will have a fresh environment.
 `python/manager.py` is responsible for making sure new agents are created whenever the number of active agents falls below a threshold.
 
-1. Build the docker image
+1. Start the manager `python3 python/manager.py`
+
+```
+python3 python/manager.py <PAT> <URL> <POOL>
+```
+
+for example
+
+```
+python3 python/manager.py ... https://dev.azure.com/c3srdev amd64-ubuntu1604-cuda100
+```
+
+The manager will check out the host system and try to determine the agent to run with the most CUDA support:
+* cwpearson/azp-cuda-agent:amd64-ubuntu1604-cuda92
+* cwpearson/azp-cuda-agent:amd64-ubuntu1604-cuda100
+* cwpearson/azp-cuda-agent:amd64-ubuntu1604-cuda101
+
+If it fails, you can supply your own docker image with the `-d` flag.
+
+Optionally, you can build your own agent and run it
+
+2a. (Optional) Build the docker image yourself
 
 ```
 cd dockeragent
 docker build -t dockeragent .
 ```
 
-2. Run `python/manager.py`
+2b. (Optional) Run `python/manager.py`
 
 `manager.py` needs the personal access token that was configured earlier.
 
 ```
 cd python
-python manager.py <PAT>
+python manager.py <PAT> <URL> <POOL> -d dockeragent
 ```
 
 The manager will run forever.

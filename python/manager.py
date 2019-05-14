@@ -3,22 +3,92 @@ import signal
 import sys
 import time
 import socket
+import argparse
+import platform
+import subprocess
+import re
 
 
-NUM = 2
+
+
+AZP_TOKEN = None
+AZP_URL = "https://dev.azure.com/c3srdev"
+AZP_POOL = "amd64-ubuntu1604-cuda100"
+AZP_AGENT_NAME_BASE = socket.gethostname()
+
+AGENT_NAME = "cwpearson/azp-cuda-agent:amd64-ubuntu1604-cuda100"
+
+CHECK_WAIT_SECONDS = 60
+DOCKER_CLIENT_TIMEOUT = 10
+
+
+parser = argparse.ArgumentParser()
+parser.add_argument("PAT", help="Azure Pipelines personal access token")
+parser.add_argument("URL", help="Azure Pipelines url (https://dev.azure.com/<project>)")
+parser.add_argument("POOL", type=str, help="Azure Pipelines pool")
+parser.add_argument("-n", help="number of agents (default = 2)", default=2)
+parser.add_argument("--name", help="agent name (default = {})".format(socket.gethostname()), default=socket.gethostname())
+parser.add_argument('-d', "--docker", help="docker image for agent")
+parser.add_argument("--timeout", type=int, help="docker client timeout (s)")
+parser.add_argument("--poll-time", type=int, help="time between checking agent status", default=CHECK_WAIT_SECONDS)
+
+args = parser.parse_args()
+
+AZP_TOKEN = args.PAT
+AZP_URL = args.URL
+AZP_POOL = args.POOL
+AZP_AGENT_NAME_BASE = args.name
+NUM = args.n
+
+def get_arch():
+    machine = platform.machine()
+    if not machine:
+        return None
+    elif machine == "x86_64":
+        return "amd64"
+    else:
+        return machine
+    
+def get_cuda_version():
+    raw = subprocess.check_output('nvidia-smi')
+    matches = re.findall(r"CUDA Version: (\d+).(\d+)", raw)
+    versionStr = "".join(matches[0])
+    return matches[0]
+
+
+if args.docker:
+    DOCKER_IMAGE = args.docker
+else:
+    DOCKER_IMAGE  = "cwpearson/azp-cuda-agent:"
+
+    machine = get_arch()
+    if not machine:
+        print("unable to detect machine")
+        sys.exit(1)
+    versionStr = "".join(get_cuda_version())
+    if not versionStr:
+        print("unable to detect installed cuda")
+        sys.exit(1)
+
+    tag = "{}-ubuntu1604-cuda{}".format(machine, versionStr)
+
+    DOCKER_IMAGE += tag
+
+    print("autodetected docker image {}".format(DOCKER_IMAGE))
+
+
+client = docker.from_env(timeout=DOCKER_CLIENT_TIMEOUT)
+
+
+# try to pull the requested image
+print("pulling {}".format(DOCKER_IMAGE))
+client.images.pull(DOCKER_IMAGE)
 
 agents = {}
 
 for agentID in range(NUM):
     agents[agentID] = None
 
-AZP_TOKEN = sys.argv[1]
-AZP_URL = "https://dev.azure.com/c3srdev"
-AZP_POOL = "amd64-ubuntu1604-cuda100"
-AZP_AGENT_NAME_BASE = socket.gethostname()
-
-CHECK_WAIT_SECONDS = 60
-DOCKER_CLIENT_TIMEOUT = 10
 
 def cleanup():
     print('Cleaning up...')
@@ -53,18 +123,13 @@ def signal_handler(sig, frame):
 
 
 
-
-
-
-client = docker.from_env(timeout=DOCKER_CLIENT_TIMEOUT)
-
 # Test for image
-print("looking for {} image".format("dockeragent"))
+print("looking for {} image".format(DOCKER_IMAGE))
 try:
-    image = client.images.get("dockeragent")
+    image = client.images.get(DOCKER_IMAGE)
 except docker.errors.ImageNotFound as e:
     print(e)
-    print("please build the dockeragent image")
+    print("the requested image was not found")
     sys.exit(1)
 print("found image")
 
@@ -128,7 +193,11 @@ def replenish_agents():
     # relaunch all not-running agents
     for agentID, containerID in agents.items():
         if containerID is None:
-            launch_agent(agentID)
+            try:
+                launch_agent(agentID)
+            except docker.errors.APIError as e:
+                print(e)
+                print("is the manager already running on this system?")
 
 
 while True:
