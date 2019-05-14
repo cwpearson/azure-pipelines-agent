@@ -5,7 +5,7 @@ import time
 import socket
 
 
-NUM = 4
+NUM = 2
 
 agents = {}
 
