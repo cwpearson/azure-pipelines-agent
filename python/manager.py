@@ -96,6 +96,7 @@ def launch_agent(agentID):
         "AZP_TOKEN": AZP_TOKEN,
         "AZP_AGENT_NAME": AZP_AGENT_NAME,
         "AZP_POOL": AZP_POOL,
+        "NVIDIA_VISIBLE_DEVICES", "all",
     }
     newContainer = client.containers.run("dockeragent", 
         runtime=NVIDIA_DOCKER_RUNTIME,
