@@ -1,8 +1,5 @@
-FROM ubuntu:16.04
-
-# https://github.com/NVIDIA/nvidia-docker/wiki/Usage
-ENV NVIDIA_VISIBLE_DEVICES all
-ENV NVIDIA_DRIVER_CAPABILITIES compute,utility
+#FROM ubuntu:16.04
+FROM nvidia/cuda:10.0-runtime-ubuntu16.04
 
 # To make it easier for build and release pipelines to run apt-get,
 # configure apt to not require confirmation (assume the -y argument by default)
