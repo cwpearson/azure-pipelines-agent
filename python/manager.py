@@ -5,24 +5,35 @@ import time
 import socket
 
 
-NUM = 2
+NUM = 4
 
-launchedIDs = []
+agents = {}
+
+for agentID in range(NUM):
+    agents[agentID] = None
 
 AZP_TOKEN = sys.argv[1]
 AZP_URL = "https://dev.azure.com/c3srdev"
 AZP_POOL = "amd64-ubuntu1604-cuda100"
 AZP_AGENT_NAME_BASE = socket.gethostname()
 
-CHECK_WAIT_SECONDS = 60
+CHECK_WAIT_SECONDS = 5
 DOCKER_CLIENT_TIMEOUT = 10
 
 def cleanup():
     print('Cleaning up...')
-    for c in client.containers.list():
-        if c.id in launchedIDs:
-            print("removing {}".format(c.short_id))
-            c.remove(force=True)
+    scan_agents()
+
+    for agentID, containerID in agents.items():
+        if containerID is not None:
+            try:
+                c = client.containers.get(containerID)
+                print("removing {} ({})".format(c.name, c.short_id))
+                c.remove(force=True)
+            except docker.errors.NotFound as e:
+                print("couldn't find {}".format(containerID))
+        
+
 
 def signal_handler(sig, frame):
     # restore the original signal handler as otherwise evil things will happen
@@ -47,7 +58,7 @@ def signal_handler(sig, frame):
 
 client = docker.from_env(timeout=DOCKER_CLIENT_TIMEOUT)
 
-# Test for images
+# Test for image
 print("looking for {} image".format("dockeragent"))
 try:
     image = client.images.get("dockeragent")
@@ -78,33 +89,54 @@ print("registering interrupt handler")
 original_sigint = signal.getsignal(signal.SIGINT)
 signal.signal(signal.SIGINT, signal_handler)
 
+def launch_agent(agentID):
+    AZP_AGENT_NAME = AZP_AGENT_NAME_BASE + "_{}".format(agentID)
+    environment = {
+        "AZP_URL": AZP_URL,
+        "AZP_TOKEN": AZP_TOKEN,
+        "AZP_AGENT_NAME": AZP_AGENT_NAME,
+        "AZP_POOL": AZP_POOL,
+    }
+    newContainer = client.containers.run("dockeragent", 
+        runtime=NVIDIA_DOCKER_RUNTIME,
+        detach=True, 
+        auto_remove=True, 
+        name=AZP_AGENT_NAME, 
+        environment=environment
+    )
+    agents[agentID] = newContainer.id
+    print("launched {} as {}".format(newContainer.short_id, newContainer.name))
+
+    return newContainer
+
+def scan_agents():
+    # check whether our agents are running
+    for agentID, containerID in agents.items():
+        if containerID is not None:
+            print("looking for container {}".format(containerID))
+            try:
+                c = client.containers.get(containerID)
+                print(c.short_id, "is found. status {}".format(c.status))
+            except docker.errors.NotFound:
+                print(containerID, "not found")
+                agents[agentID] = None
+
+def replenish_agents():
+    # figure out who is running
+    scan_agents()
+
+    # relaunch all not-running agents
+    for agentID, containerID in agents.items():
+        if containerID is None:
+            launch_agent(agentID)
+
 
 while True:
-    numRunning = 0
-    for c in client.containers.list():
-        if c.attrs['Config']['Image'] == 'dockeragent':
-            numRunning += 1
-            print("found {} ({}/{})".format(c.short_id, numRunning, NUM))
+    
+    # look for running containers
+    replenish_agents()
 
-    while numRunning < NUM:
-        AZP_AGENT_NAME = AZP_AGENT_NAME_BASE + "_{}".format(numRunning)
-        environment = {
-            "AZP_URL": AZP_URL,
-            "AZP_TOKEN": AZP_TOKEN,
-            "AZP_AGENT_NAME": AZP_AGENT_NAME,
-            "AZP_POOL": AZP_POOL,
-        }
-        newContainer = client.containers.run("dockeragent", 
-            runtime=NVIDIA_DOCKER_RUNTIME,
-            detach=True, 
-            auto_remove=True, 
-            name=AZP_AGENT_NAME, 
-            environment=environment
-        )
-        print("launched {} as {}".format(newContainer.short_id, newContainer.name))
-        numRunning += 1
-        launchedIDs += [newContainer.id]
-
+    # wait a bit
     time.sleep(CHECK_WAIT_SECONDS)
 
 cleanup()
