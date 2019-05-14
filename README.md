@@ -5,45 +5,7 @@ https://docs.microsoft.com/en-us/azure/devops/pipelines/agents/v2-linux?view=azu
 
 The followin steps are marked with (HOST) or (WEBSITE), suggesting whether the step should be carried out on the machine intened to be the self-hosted agent, or on the Azure Pipelines website.
 
-## (WEBSITE) Agent pools
-
-You must tell Azure Pipelines what pool your agents work in.
-You can assign each job to a unique pool, so in C3SR we organize pools according to the capabilities of the underlying host.
-For example, an amd64 host with ubuntu 1604 and cuda 10.0 would be `amd64-ubuntu1604-cuda100`.
-
-To create a new agent pool do
-
-https://dev.azure.com/c3srdev/_settings/agentpools >> new agent pool
-
-You will use the name of the agent pool in your `azure-pipelines.yml`.
-
-## (HOST) Setting up the virtual agent
-
-Uses Vagrant
-
-```
-vagrant up
-```
-
-## (HOST) Setting up the real CUDA agent
-
-1. Install the desired version of CUDA on your system
-2. Create a `sudo` user to run the Azure pipelines agent.
-This user will run the Azure Pipelines agent service.
-This user should not need to type in their password to get sudo access, so that `sudo` can be used in the `azure-pipelines.yml` file.
-You can do this with `sudo visudo` and then add a line like
-
-```
-<user> ALL=(ALL) NOPASSWD: ALL
-```
-
-for example
-
-```
-azure-pipelines ALL=(ALL) NOPASSWD: ALL
-```
-
-### (WEBSITE) set up PAT
+## (WEBSITE) set up PAT
 
 Go to https://dev.azure.com/c3srdev
 
@@ -55,6 +17,48 @@ more scopes: agent pools read/manage
 
 token is saved in bitwarden under azure-pipelines-agent token
 
+## (WEBSITE) Create an agent pool
+
+You must tell Azure Pipelines what pool your agents work in.
+You can assign each job to a unique pool, so in C3SR we organize pools according to the capabilities of the underlying host.
+For example, an amd64 host with ubuntu 1604 and cuda 10.0 would be `amd64-ubuntu1604-cuda100`.
+
+To create a new agent pool do
+
+https://dev.azure.com/c3srdev/_settings/agentpools >> new agent pool
+
+You will use the name of the agent pool in your `azure-pipelines.yml`.
+
+## (HOST) Install docker & nvidia-docker
+
+The Azure pipelines agent runs inside Docker, to create a fresh environment for each job.
+
+## (HOST) Run the agent using Docker
+
+The docker agent is configured to accept a single job and then exit.
+This ensures that each job will have a fresh environment.
+`python/manager.py` is responsible for making sure new agents are created whenever the number of active agents falls below a threshold.
+
+1. Build the docker image
+
+```
+cd dockeragent
+docker build -t dockeragent .
+```
+
+2. Run `python/manager.py`
+
+`manager.py` needs the personal access token that was configured earlier.
+
+```
+cd python
+python manager.py <PAT>
+```
+
+The manager will run forever.
+When it is interrupted, it will try to clean up any dangling containers that it created.
+
+## Historical Notes
 
 
 ### (HOST) Download and configure agent
@@ -120,4 +124,33 @@ After configuring, run
 ```
 sudo ./svc.sh install
 sudo ./svc.sh start
+```
+
+
+
+
+## (HOST) Setting up the virtual agent
+
+Uses Vagrant
+
+```
+vagrant up
+```
+
+## (HOST) Setting up the real CUDA agent
+
+1. Install the desired version of CUDA on your system
+2. Create a `sudo` user to run the Azure pipelines agent.
+This user will run the Azure Pipelines agent service.
+This user should not need to type in their password to get sudo access, so that `sudo` can be used in the `azure-pipelines.yml` file.
+You can do this with `sudo visudo` and then add a line like
+
+```
+<user> ALL=(ALL) NOPASSWD: ALL
+```
+
+for example
+
+```
+azure-pipelines ALL=(ALL) NOPASSWD: ALL
 ```

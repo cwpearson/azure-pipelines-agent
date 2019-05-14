@@ -24,7 +24,7 @@ fi
 
 rm -rf /azp/agent
 mkdir /azp/agent
-cd /azp/agent
+cd /azp
 
 export AGENT_ALLOW_RUNASROOT="1"
 
@@ -56,7 +56,7 @@ trap 'cleanup; exit 143' TERM
 
 print_header "2. Configuring Azure Pipelines agent..."
 
-./config.sh
+./config.sh \
   --unattended \
   --agent "${AZP_AGENT_NAME:-$(hostname)}" \
   --url "$AZP_URL" \
@@ -65,9 +65,9 @@ print_header "2. Configuring Azure Pipelines agent..."
   --pool "${AZP_POOL:-Default}" \
   --work "${AZP_WORK:-_work}" \
   --replace \
-  --acceptTeeEula & wait $!
+  --acceptTeeEula
 
 print_header "3. Running Azure Pipelines agent..."
 
 # --once quit after one job
-./run.sh --once
+exec ./run.sh --once

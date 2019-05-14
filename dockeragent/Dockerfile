@@ -18,9 +18,7 @@ RUN apt-get update \
 WORKDIR /azp
 
 RUN curl -LsS https://vstsagentpackage.azureedge.net/agent/2.150.3/vsts-agent-linux-x64-2.150.3.tar.gz | tar -xz
-
 COPY ./start.sh .
-COPY ./env.sh .
 
 RUN chmod +x start.sh
 
