@@ -1,5 +1,9 @@
 FROM ubuntu:16.04
 
+# https://github.com/NVIDIA/nvidia-docker/wiki/Usage
+ENV NVIDIA_VISIBLE_DEVICES all
+ENV NVIDIA_DRIVER_CAPABILITIES compute,utility
+
 # To make it easier for build and release pipelines to run apt-get,
 # configure apt to not require confirmation (assume the -y argument by default)
 ENV DEBIAN_FRONTEND=noninteractive
