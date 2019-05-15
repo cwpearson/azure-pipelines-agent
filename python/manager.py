@@ -165,7 +165,7 @@ def launch_agent(agentID):
         "AZP_AGENT_NAME": AZP_AGENT_NAME,
         "AZP_POOL": AZP_POOL,
     }
-    newContainer = client.containers.run("dockeragent", 
+    newContainer = client.containers.run(DOCKER_IMAGE, 
         runtime=NVIDIA_DOCKER_RUNTIME,
         detach=True, 
         auto_remove=True, 
