@@ -15,8 +15,8 @@ AZP_TOKEN = None
 AZP_URL = "https://dev.azure.com/c3srdev"
 AZP_POOL = "amd64-ubuntu1604-cuda100"
 AZP_AGENT_NAME_BASE = socket.gethostname()
-
 AGENT_NAME = "cwpearson/azp-cuda-agent:amd64-ubuntu1604-cuda100"
+OOM_SCORE_ADJ = 1000 # make containers get killed first in a low-memory situation
 
 CHECK_WAIT_SECONDS = 60
 DOCKER_CLIENT_TIMEOUT = 10
@@ -52,8 +52,11 @@ def get_arch():
 def get_cuda_version():
     raw = subprocess.check_output('nvidia-smi')
     matches = re.findall(r"CUDA Version: (\d+).(\d+)", raw)
-    versionStr = "".join(matches[0])
-    return matches[0]
+    if not matches:
+        return None
+    else:
+        versionStr = "".join(matches[0])
+        return matches[0]
 
 
 if args.docker:
@@ -167,7 +170,8 @@ def launch_agent(agentID):
         detach=True, 
         auto_remove=True, 
         name=AZP_AGENT_NAME, 
-        environment=environment
+        environment=environment,
+        oom_score_adj=OOM_SCORE_ADJ,
     )
     agents[agentID] = newContainer.id
     print("launched {} as {}".format(newContainer.short_id, newContainer.name))
