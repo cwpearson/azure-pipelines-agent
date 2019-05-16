@@ -1,11 +1,12 @@
 # azure-pipelines-agent
-Some notes on Azure Pipeline self-hosted agent setup.
+
+Self-hosted GPU agents for Azure Pipelines
 
 https://docs.microsoft.com/en-us/azure/devops/pipelines/agents/v2-linux?view=azure-devops
 
 The following steps are marked with (HOST) or (WEBSITE), suggesting whether the step should be carried out on the machine intened to be the self-hosted agent, or on the Azure Pipelines website.
 
-## (WEBSITE) set up PAT
+## (WEBSITE) set up a Personal Access Token
 
 Go to https://dev.azure.com/c3srdev
 
@@ -29,15 +30,24 @@ https://dev.azure.com/c3srdev/_settings/agentpools >> new agent pool
 
 You will use the name of the agent pool in your `azure-pipelines.yml`.
 
-## (HOST) Install docker & nvidia-docker
+## (HOST) Install CUDA, docker, nvidia-docker, and python3
 
 The Azure pipelines agent runs inside Docker, to create a fresh environment for each job.
+The manager is written in python.
 
-## (HOST) Run the agent using Docker
+* [Install CUDA](https://developer.nvidia.com/cuda-downloads)
+* [Install Docker](https://docs.docker.com/)
+* [Install nvidia-docker](https://github.com/NVIDIA/nvidia-docker)
+* Install python3. How you do this probably depends on your host system.
+
+
+## (HOST) Run the agents using Docker
 
 The docker agent is configured to accept a single job and then exit.
 This ensures that each job will have a fresh environment.
 `python/manager.py` is responsible for making sure new agents are created whenever the number of active agents falls below a threshold.
+The manager will run forever.
+When it is interrupted, it will try to clean up any dangling containers that it created.
 
 1. Start the manager `python3 python/manager.py`
 
@@ -45,133 +55,42 @@ This ensures that each job will have a fresh environment.
 python3 python/manager.py <PAT> <URL> <POOL>
 ```
 
-for example
-
-```
-python3 python/manager.py ... https://dev.azure.com/c3srdev amd64-ubuntu1604-cuda100
-```
-
-The manager will check out the host system and try to determine the agent to run with the most CUDA support:
-* cwpearson/azp-cuda-agent:amd64-ubuntu1604-cuda92
-* cwpearson/azp-cuda-agent:amd64-ubuntu1604-cuda100
-* cwpearson/azp-cuda-agent:amd64-ubuntu1604-cuda101
-
-If it fails, you can supply your own docker image with the `-d` flag.
-
-Optionally, you can build your own agent and run it
-
-2a. (Optional) Build the docker image yourself
-
-```
-cd dockeragent
-docker build -t dockeragent .
-```
-
-2b. (Optional) Run `python/manager.py`
-
-`manager.py` needs the personal access token that was configured earlier.
-
-```
-cd python
-python manager.py <PAT> <URL> <POOL> -d dockeragent
-```
-
-The manager will run forever.
-When it is interrupted, it will try to clean up any dangling containers that it created.
-
-## Historical Notes
-
-
-### (HOST) Download and configure agent
-
-1. ssh into the host and switch to the user you created for the Azure Pipelines agent.
-
-2. Download the agent software.
-
-https://dev.azure.com/trekinator/_settings/agentpools >> download agent
-
-```
-~/$ mkdir myagent && cd myagent
-~/myagent$ tar zxvf ~/Downloads/vsts-agent-linux-x64-2.148.0.tar.gz
-```
-
-3. Install the dependencies required for the agent.
-
-```
-bin/installdependencies.sh
-```
-
-4. Configure the agent.
-
-```
-~/myagent$ ./config.sh
-```
-
-server URL: 
-https://dev.azure.com/c3srdev
-
-authentication type:
-PAT
-
-agent pool:
-Use the corresponding agent pool you created on the website.
-
-agent name:
-the hostname of the system is a good choice
-
-work folder:
-_work
-
-# (HOST) Run the agent interactively
-
-If you have been running as a service, uninstall
-
-https://docs.microsoft.com/en-us/azure/devops/pipelines/agents/v2-linux?view=azure-devops#service_uninstall
-
-```
-sudo ./svc.sh uninstall
-```
-
-Then do
-
-```
-./run.sh
-```
-
-# (HOST) Run the agent as a service
-
-After configuring, run 
-
-```
-sudo ./svc.sh install
-sudo ./svc.sh start
-```
-
-
-
-
-## (HOST) Setting up the virtual agent
-
-Uses Vagrant
-
-```
-vagrant up
-```
-
-## (HOST) Setting up the real CUDA agent
-
-1. Install the desired version of CUDA on your system
-2. Create a `sudo` user to run the Azure pipelines agent.
-This user will run the Azure Pipelines agent service.
-This user should not need to type in their password to get sudo access, so that `sudo` can be used in the `azure-pipelines.yml` file.
-You can do this with `sudo visudo` and then add a line like
-
-```
-<user> ALL=(ALL) NOPASSWD: ALL
-```
+The manager needs to be passed the Personal Access Token you created earlier, as well as the Azure Pipelines project URL, and the name of the pool the agent should be registered to.
 
 for example
 
 ```
-azure-pipelines ALL=(ALL) NOPASSWD: ALL
+python3 python/manager.py [long string of letters and numbers] https://dev.azure.com/c3srdev amd64-ubuntu1604-cuda100
 ```
+
+
+
+The manager will query the host system and try to determine the agent to run with the most CUDA support.
+These agent Docker images are hosted on the Docker Hub, and defined in the [dockeragent](dockeragent) directory of this repository.
+* `cwpearson/azp-cuda-agent:amd64-ubuntu1604-cuda92`
+* `cwpearson/azp-cuda-agent:amd64-ubuntu1604-cuda100`
+* `cwpearson/azp-cuda-agent:amd64-ubuntu1604-cuda101`
+
+
+If the manager fails to understand your system, or your system is not supported by one of those images, you can supply your own docker image with the `-d` flag.
+
+
+2. If you want to build your own agent:
+    1. Define a Docker image compatible with your system
+
+        Use the Dockerfiles in [dockeragent](dockeragent) as an example.
+        You will probably need to change the downloaded Azure Pipelines agent binary, as well as the nvidia CUDA base image.
+
+    2. Build the docker image yourself
+
+        ```
+        cd dockeragent
+        docker build -f <your docker file> -t myazpagent .
+        ```
+
+    3. Run `python/manager.py`
+
+        ```
+        cd python
+        python manager.py <PAT> <URL> <POOL> -d myazpagent
+        ```
