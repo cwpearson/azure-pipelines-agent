@@ -1,5 +1,7 @@
 # azure-pipelines-agent
 
+[![Build Status](https://dev.azure.com/trekinator/trekinator/_apis/build/status/cwpearson.azure-pipelines-agent?branchName=master)](https://dev.azure.com/trekinator/trekinator/_build/latest?definitionId=2&branchName=master)
+
 Self-hosted GPU agents for Azure Pipelines
 
 https://docs.microsoft.com/en-us/azure/devops/pipelines/agents/v2-linux?view=azure-devops
