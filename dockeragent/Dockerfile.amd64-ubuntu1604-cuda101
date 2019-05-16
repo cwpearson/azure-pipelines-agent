@@ -14,8 +14,7 @@ RUN apt-get update \
         git \
         iputils-ping \
         libcurl3 \
-        libicu55 \
-        nice
+        libicu55
 
 WORKDIR /azp
 
