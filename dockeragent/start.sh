@@ -70,4 +70,4 @@ print_header "2. Configuring Azure Pipelines agent..."
 print_header "3. Running Azure Pipelines agent..."
 
 # --once quit after one job
-exec ./run.sh --once
+exec nice -n20 ./run.sh --once
