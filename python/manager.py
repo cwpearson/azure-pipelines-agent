@@ -7,6 +7,7 @@ import argparse
 import platform
 import subprocess
 import re
+import pathlib
 
 
 
@@ -31,8 +32,30 @@ parser.add_argument("--name", help="agent name (default = {})".format(socket.get
 parser.add_argument('-d', "--docker", help="docker image for agent")
 parser.add_argument("--timeout", type=int, help="docker client timeout (s)")
 parser.add_argument("--poll-time", type=int, help="time between checking agent status", default=CHECK_WAIT_SECONDS)
+parser.add_argument("--volume", type=str, nargs="+", help="volume in host:container:var format")
 
 args = parser.parse_args()
+
+
+volumeSpecs = []
+# try to parse volumes
+for volumeStr in args.volume:
+    fields = volumeStr.split(":")
+    if len(fields) != 3:
+        print(f"expected host:container:var format for argument {volumeStr}")
+        sys.exit(-1)
+
+    # get the absolute host path
+    hostPath = pathlib.Path(fields[0])
+    hostPath = hostPath.resolve()
+
+    if not hostPath.is_dir():
+        print(f"{hostPath} is not a directory on the host")
+        sys.exit(-1)
+
+    containerPath = fields[1]
+    envVar = fields[2]
+    volumeSpecs += [(str(hostPath), containerPath, envVar)]
 
 AZP_TOKEN = args.PAT
 AZP_URL = args.URL
@@ -50,13 +73,49 @@ def get_arch():
         return machine
     
 def get_cuda_version():
+
+    # try nvidia-smi
+    # nvidia-smi in 9.2 doesn't report cuda version possibly?
     raw = subprocess.check_output('nvidia-smi')
+    print(raw)
+    if type(raw) == bytes:
+        raw = str(raw)
     matches = re.findall(r"CUDA Version: (\d+).(\d+)", raw)
-    if not matches:
-        return None
-    else:
-        versionStr = "".join(matches[0])
+    print(matches)
+    if matches:
         return matches[0]
+
+    # try nvcc
+    raw = subprocess.check_output(['nvcc', "--version"]) 
+
+    if type(raw) == bytes:
+        raw = str(raw)
+    matches = re.findall(r"V(\d+)\.(\d+)\.(\d*)", raw)
+    if matches:
+        return matches[0]
+    return []
+
+
+client = docker.from_env(timeout=DOCKER_CLIENT_TIMEOUT) 
+
+# Get host CUDA version
+
+
+# Test for nvidia-docker
+NVIDIA_DOCKER_TEST_IMAGE = "nvidia/cuda:9.0-base"
+NVIDIA_DOCKER_TEST_COMMAND = "nvidia-smi"
+NVIDIA_DOCKER_RUNTIME = "nvidia"
+print("testing for nvidia-docker")
+try:
+    client.containers.run(NVIDIA_DOCKER_TEST_IMAGE, runtime=NVIDIA_DOCKER_RUNTIME, command=NVIDIA_DOCKER_TEST_COMMAND, auto_remove=True)
+# except docker.errors.ImageNotFound as e:
+except docker.errors.APIError as e:
+    print(e)
+    print("Please make sure nvidia-docker is working right")
+    print("docker run --runtime={} --rm {} {}".format(NVIDIA_DOCKER_RUNTIME, NVIDIA_DOCKER_TEST_IMAGE, NVIDIA_DOCKER_TEST_COMMAND))
+    sys.exit(-1)
+
+print("nvidia-docker looks good")
 
 
 if args.docker:
@@ -68,7 +127,9 @@ else:
     if not machine:
         print("unable to detect machine")
         sys.exit(1)
-    versionStr = "".join(get_cuda_version())
+    # [9, 2, 88]
+    # [10, 1]
+    versionStr = "".join(get_cuda_version()[0:2])
     if not versionStr:
         print("unable to detect installed cuda")
         sys.exit(1)
@@ -80,7 +141,7 @@ else:
     print("autodetected docker image {}".format(DOCKER_IMAGE))
 
 
-client = docker.from_env(timeout=DOCKER_CLIENT_TIMEOUT)
+
 
 
 # try to pull the requested image
@@ -137,27 +198,15 @@ except docker.errors.ImageNotFound as e:
 print("found image")
 
 
-# Test for nvidia-docker
-NVIDIA_DOCKER_TEST_IMAGE = "nvidia/cuda:9.0-base"
-NVIDIA_DOCKER_TEST_COMMAND = "nvidia-smi"
-NVIDIA_DOCKER_RUNTIME = "nvidia"
-print("testing for nvidia-docker")
-try:
-    client.containers.run(NVIDIA_DOCKER_TEST_IMAGE, runtime=NVIDIA_DOCKER_RUNTIME, command=NVIDIA_DOCKER_TEST_COMMAND, auto_remove=True)
-# except docker.errors.ImageNotFound as e:
-except docker.errors.APIError as e:
-    print(e)
-    print("Please make sure nvidia-docker is working right")
-    print("docker run --runtime={} --rm {} {}".format(NVIDIA_DOCKER_RUNTIME, NVIDIA_DOCKER_TEST_IMAGE, NVIDIA_DOCKER_TEST_COMMAND))
-    sys.exit(-1)
 
-print("nvidia-docker looks good")
 
 print("registering interrupt handler")
 original_sigint = signal.getsignal(signal.SIGINT)
 signal.signal(signal.SIGINT, signal_handler)
 
-def launch_agent(agentID):
+def launch_agent(agentID, volumeSpecs):
+
+    # build environment
     AZP_AGENT_NAME = AZP_AGENT_NAME_BASE + "_{}".format(agentID)
     environment = {
         "AZP_URL": AZP_URL,
@@ -165,6 +214,20 @@ def launch_agent(agentID):
         "AZP_AGENT_NAME": AZP_AGENT_NAME,
         "AZP_POOL": AZP_POOL,
     }
+
+    volumes = {}
+    for vs in volumeSpecs:
+        hostPath, containerPath, var = vs
+        if var not in environment:
+            environment[var] = containerPath
+        else:
+            print(f"var requested by volumeSpec {vs} is already in environment {environment}")
+            sys.exit(1)
+        volumes[hostPath] = {
+            "bind": containerPath,
+            "mode": "ro",
+        }
+
     newContainer = client.containers.run(DOCKER_IMAGE, 
         runtime=NVIDIA_DOCKER_RUNTIME,
         detach=True, 
@@ -172,9 +235,10 @@ def launch_agent(agentID):
         name=AZP_AGENT_NAME, 
         environment=environment,
         oom_score_adj=OOM_SCORE_ADJ,
+        volumes=volumes,
     )
     agents[agentID] = newContainer.id
-    print("launched {} as {}".format(newContainer.short_id, newContainer.name))
+    print(f"launched {newContainer.short_id} as {newContainer.name}")
 
     return newContainer
 
