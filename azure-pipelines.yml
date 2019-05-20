@@ -34,5 +34,6 @@ stages:
     - script: |
         docker push $(DOCKER_USERNAME)/$(IMAGE_NAME)
       displayName: 'docker push'
+      condition: eq(variables['Build.SourceBranch'], 'refs/heads/master')
 
     
