@@ -74,6 +74,13 @@ These agent Docker images are hosted on the Docker Hub, and defined in the [dock
 
 If the manager fails to understand your system, or your system is not supported by one of those images, you can supply your own docker image with the `-d` flag.
 
+If you want to make host directories available to the containers, you can use the `--volume` option, like so
+
+* `--volume hostpath:containerpath:envvar`
+
+this will map `hostpath` into the container at `containerpath` and execute the container with the environment variable `envvar` set to `containerpath`.
+`--volume` may be specified more than once.
+
 
 2. If you want to build your own agent:
     1. Define a Docker image compatible with your system
