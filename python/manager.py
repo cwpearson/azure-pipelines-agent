@@ -27,12 +27,12 @@ parser = argparse.ArgumentParser()
 parser.add_argument("PAT", help="Azure Pipelines personal access token")
 parser.add_argument("URL", help="Azure Pipelines url (https://dev.azure.com/<project>)")
 parser.add_argument("POOL", type=str, help="Azure Pipelines pool")
-parser.add_argument("-n", help="number of agents (default = 2)", default=2)
+parser.add_argument("-n", type=int, help="number of agents (default = 2)", default=2)
 parser.add_argument("--name", help="agent name (default = {})".format(socket.gethostname()), default=socket.gethostname())
 parser.add_argument('-d', "--docker", help="docker image for agent")
 parser.add_argument("--timeout", type=int, help="docker client timeout (s)")
 parser.add_argument("--poll-time", type=int, help="time between checking agent status", default=CHECK_WAIT_SECONDS)
-parser.add_argument("--volume", type=str, nargs="+", help="volume in host:container:var format")
+parser.add_argument("--volume", type=str, nargs="+", help="volume in host:container:var format", default=[])
 
 args = parser.parse_args()
 
@@ -61,7 +61,7 @@ AZP_TOKEN = args.PAT
 AZP_URL = args.URL
 AZP_POOL = args.POOL
 AZP_AGENT_NAME_BASE = args.name
-NUM = args.n
+NUM = int(args.n)
 
 def get_arch():
     machine = platform.machine()
@@ -77,11 +77,9 @@ def get_cuda_version():
     # try nvidia-smi
     # nvidia-smi in 9.2 doesn't report cuda version possibly?
     raw = subprocess.check_output('nvidia-smi')
-    print(raw)
     if type(raw) == bytes:
         raw = str(raw)
     matches = re.findall(r"CUDA Version: (\d+).(\d+)", raw)
-    print(matches)
     if matches:
         return matches[0]
 
@@ -254,7 +252,7 @@ def scan_agents():
                 print(containerID, "not found")
                 agents[agentID] = None
 
-def replenish_agents():
+def replenish_agents(volumeSpecs):
     # figure out who is running
     scan_agents()
 
@@ -262,7 +260,7 @@ def replenish_agents():
     for agentID, containerID in agents.items():
         if containerID is None:
             try:
-                launch_agent(agentID)
+                launch_agent(agentID, volumeSpecs)
             except docker.errors.APIError as e:
                 print(e)
                 print("is the manager already running on this system?")
@@ -271,7 +269,7 @@ def replenish_agents():
 while True:
     
     # look for running containers
-    replenish_agents()
+    replenish_agents(volumeSpecs)
 
     # wait a bit
     time.sleep(CHECK_WAIT_SECONDS)
