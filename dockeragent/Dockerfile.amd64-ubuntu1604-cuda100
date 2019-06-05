@@ -18,7 +18,9 @@ RUN apt-get update \
 
 WORKDIR /azp
 
-RUN curl -LsS https://vstsagentpackage.azureedge.net/agent/2.150.3/vsts-agent-linux-x64-2.150.3.tar.gz | tar -xz
+# if the pool stops accepting jobs, check that there is not a new agent to download
+# https://dev.azure.com/c3srdev/_settings/agentpools
+RUN curl -LsS https://vstsagentpackage.azureedge.net/agent/2.152.1/vsts-agent-linux-x64-2.152.1.tar.gz | tar -xz
 COPY ./start.sh .
 
 RUN chmod +x start.sh
