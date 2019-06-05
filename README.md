@@ -103,3 +103,11 @@ this will map `hostpath` into the container at `containerpath` and execute the c
         cd python
         python manager.py <PAT> <URL> <POOL> -d myazpagent
         ```
+
+## FAQ
+
+### The pool stopped accepting my jobs
+
+If the agent is out of date, at some point it seems to stop accepting jobs.
+
+Check `https://dev.azure.com/{project}/_settings/agentpools` for the current download link and make sure it matches the docker file.
